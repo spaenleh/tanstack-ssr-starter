@@ -14,10 +14,17 @@ import { oauthAccount, user } from "~/server/db/schema";
 interface GitHubUser {
   id: string;
   name: string | null;
-  email: string;
+  email: string | null;
   avatar_url: string;
   location: string | null;
   login: string;
+}
+
+interface GithubEmail {
+  email: string;
+  primary: boolean;
+  verified: boolean;
+  visibility: "public" | null;
 }
 
 export const APIRoute = createAPIFileRoute("/api/auth/callback/github")({
@@ -44,7 +51,7 @@ export const APIRoute = createAPIFileRoute("/api/auth/callback/github")({
           Authorization: `Bearer ${tokens.accessToken()}`,
         },
       });
-      const providerUser: GitHubUser = await githubUserResponse.json();
+      let providerUser: GitHubUser = await githubUserResponse.json();
 
       const existingUser = await db.query.oauthAccount.findFirst({
         where: and(
@@ -64,8 +71,26 @@ export const APIRoute = createAPIFileRoute("/api/auth/callback/github")({
           },
         });
       } else {
+        // email can be null if user did not allow email to be public
+        if (providerUser.email == null) {
+          const githubUserEmailResponse = await fetch(
+            "https://api.github.com/user/emails",
+            {
+              headers: {
+                Authorization: `Bearer ${tokens.accessToken()}`,
+              },
+            },
+          );
+          const providerUserEmails: [GithubEmail] = await githubUserEmailResponse.json();
+
+          const primaryEmail = providerUserEmails.find((e) => e.primary == true)?.email;
+          if (primaryEmail) {
+            providerUser.email = primaryEmail;
+          }
+        }
+        // TODO: do refactor code to not have to use non-null assertions
         const existingUserEmail = await db.query.user.findFirst({
-          where: eq(user.email, providerUser.email),
+          where: eq(user.email, providerUser.email!),
         });
         if (existingUserEmail) {
           await db.insert(oauthAccount).values({
@@ -89,7 +114,8 @@ export const APIRoute = createAPIFileRoute("/api/auth/callback/github")({
         const [{ newId }] = await tx
           .insert(user)
           .values({
-            email: providerUser.email,
+            // TODO: refactor code to not have to use non-null assertions
+            email: providerUser.email!,
             name: providerUser.name || providerUser.login,
             avatar_url: providerUser.avatar_url,
           })

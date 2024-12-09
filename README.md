@@ -33,6 +33,17 @@ Auth providers:
 
    The development server should be now running at [http://localhost:3000](http://localhost:3000).
 
+5. Adding a database
+
+   ```bash
+   podman run -d -p 5432:5432 \
+   -e POSTGRES_USER=frogz \
+   -e POSTGRES_DB=frogz \
+   -e POSTGRES_PASSWORD="frogz" \
+   --name frogz \
+   postgres:15.3-alpine
+   ```
+
 ## Building for production
 
 1. Configure [`app.config.ts`](./app.config.ts#L15) for your preferred deployment target. Read the [hosting](https://tanstack.com/router/latest/docs/framework/react/start/hosting#deployment) docs for more information.
